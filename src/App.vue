@@ -1,49 +1,95 @@
-<template lang="pug">
-  main
-    h1 Tusk-Runner GUI
-    button.toggleAll(
-      v-if="scriptRuns.some(st => st.isOpened)"
-      @click="scriptRuns.forEach(sr => { sr.isOpened = false; })"
-    ) Collapse all
-    button.toggleAll(
-      v-else
-      @click="scriptRuns.forEach(sr => { sr.isOpened = true; })"
-    ) Open all
+<template>
+<main>
+  <div>
+    <h1>Tusk-Runner GUI</h1>
+  </div>
 
-    .scriptRun(
-      v-for="scriptRun of scriptRuns"
-      :class="{ \
-        'scriptRun-error': scriptRun.error || scriptRun.errorStack, \
-        'scriptRun-active': typeof scriptRun.duration !== `number`, \
-      }"
-    )
-      span.scriptRun_header {{ formatDatetime(scriptRun.start) }} {{ scriptRun.repoName || `-` }}
+  <select v-model="selectedScript">
+    <option :value="null"> - </option>
+    <option
+      v-for="script in scripts"
+      :key="script"
+      :value="script"
+    > {{ script }} </option>
+  </select>
+  <button
+    style="margin-left: 5px"
+    :disabled="selectedScript === null"
+    @click="runScript"
+  > Run </button>
 
-      button.scriptRun_toggleButton(
-        @click="scriptRun.isOpened = !scriptRun.isOpened"
-      ) {{ scriptRun.isOpened ? 'V' : '<' }}
+  <br>
 
-      div(v-if="scriptRun.isOpened")
-        h4 Duration: {{ scriptRun.duration / 1000 }} seconds
-        .scriptRun_item.scriptRun_item-error(v-if="scriptRun.error")
-          label
-            b error
-          pre {{ JSON.stringify(scriptRun.error, null, 2) }}
-        .scriptRun_item.scriptRun_item-error(v-if="scriptRun.errorStack")
-          label
-            b errorStack
-          pre {{ scriptRun.errorStack }}
-        .scriptRun_item(
-          v-for="prop of ['scriptContent', 'stdout', 'stderr']"
-          v-if="prop in scriptRun"
-        )
-            label
-              b {{ prop }}
-            pre {{ scriptRun[prop] }}
+  <button
+    class="toggleAll"
+    v-if="scriptRuns.some(st => st.isOpened)"
+    @click="scriptRuns.forEach(sr => { sr.isOpened = false; })"
+  > Collapse all </button>
+  <button
+    class="toggleAll"
+    v-else
+    @click="scriptRuns.forEach(sr => { sr.isOpened = true; })"
+  > Open all </button>
+
+  <div
+    class="scriptRun"
+    v-for="scriptRun of scriptRuns"
+    :key="scriptRun.webhooksDelivery"
+    :class="{
+      'scriptRun-error': scriptRun.error || scriptRun.errorStack,
+      'scriptRun-active': typeof scriptRun.duration !== `number`,
+    }"
+  >
+    <span class="scriptRun_header">
+      {{ formatDatetime(scriptRun.start) }} {{ scriptRun.repoName || `-` }}
+    </span>
+
+    <button
+      class="scriptRun_toggleButton"
+      @click="scriptRun.isOpened = !scriptRun.isOpened"
+    > {{ scriptRun.isOpened ? 'V' : '&lt;' }} </button>
+
+    <div v-if="scriptRun.isOpened">
+      <h4> Duration: {{ scriptRun.duration / 1000 }} seconds </h4>
+
+      <div
+        class="scriptRun_item scriptRun_item-error"
+        v-if="scriptRun.error"
+      >
+        <label>
+          <b> error </b>
+        </label>
+        <pre> {{ JSON.stringify(scriptRun.error, null, 2) }} </pre>
+      </div>
+
+      <div
+        class="scriptRun_item.scriptRun_item-error"
+        v-if="scriptRun.errorStack"
+      >
+        <label>
+          <b> errorStack </b>
+        </label>
+        <pre> {{ scriptRun.errorStack }} </pre>
+      </div>
+
+      <div
+        class="scriptRun_item"
+        v-for="prop of ['scriptContent', 'stdout', 'stderr'].filter(p => p in scriptRun)"
+        :key="prop"
+      >
+        <label>
+          <b> {{ prop }} </b>
+        </label>
+        <pre> {{ scriptRun[prop] }} </pre>
+      </div>
+    </div>
+  </div>
+</main>
 </template>
 
 <script>
 import axios from 'axios';
+import ReconnectingWebSocket from 'reconnecting-websocket';
 
 const months = [
   `jan`, `feb`,
@@ -96,23 +142,67 @@ function formatDatetime(timestamp) {
   }
 }
 
+const apiBaseUrl = `//0.narandev.ru/tusk-runner`;
+
 export default {
   data() {
     return {
       scriptRuns: [],
+
+      selectedScript: null,
+      scripts: [],
     };
   },
   async created() {
-    const { data: scriptRuns } = await axios.get(
-      `https://0.narandev.ru/tusk-runner/lastScriptRuns?limit=10&secret=${
-        localStorage.getItem(`secret`)
-      }`,
-    );
-    scriptRuns.forEach(sr => { sr.isOpened = true; });
-    this.scriptRuns = scriptRuns;
+    const ws = new ReconnectingWebSocket(`wss:${apiBaseUrl}/ws`);
+    ws.onmessage = (message) => {
+      const { method, params } = JSON.parse(message);
+
+      switch (method) {
+        case `scriptRun.start`: {
+          this.scriptRuns.unshift(params.scriptRun);
+        } break;
+        case `scriptRun.end`: {
+          const i = this.scriptRuns
+            .findIndex(sr => sr.webhookDelivery === params.scriptRun.webhookDelivery);
+          if (i !== -1) {
+            this.scriptRuns[i] = params.scripts;
+          }
+        } break;
+      }
+    };
+    ws.onopen = () => {
+      console.log('WebSocket opened!');
+    };
+    ws.onclose = () => {
+      console.log('WebSocket closed!');
+    };
+
+
+    await Promise.all([
+      this.fetchScriptRuns(),
+      this.fetchScripts(),
+    ]);
   },
   methods: {
     formatDatetime,
+    async fetchScriptRuns() {
+      const { data: scriptRuns } = await axios.get(
+        `https:${apiBaseUrl}/scriptRuns?limit=10&secret=${localStorage.getItem(`secret`)}`
+      );
+      scriptRuns.forEach(sr => { sr.isOpened = true; });
+      this.scriptRuns = scriptRuns;
+    },
+    async fetchScripts() {
+      const { data: scripts } = await axios.get(
+        `https:${apiBaseUrl}/scripts`,
+      );
+      this.scripts = scripts;
+    },
+
+    runScript() {
+      console.log(this.selectedScript);
+    }
   }
 }
 </script>

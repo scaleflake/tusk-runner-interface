@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "axios": "^0.19.2"
+    "axios": "^0.19.2",
+    "reconnecting-websocket": "^4.4.0"
   },
   "devDependencies": {
     "@vue/cli-service": "^4.0.0",

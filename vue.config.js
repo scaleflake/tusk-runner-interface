@@ -1,3 +1,3 @@
 module.exports = {
-  publicPath: '/tusk-runner/gui/'
+  publicPath: '/tusk-runner/gui/',
 };

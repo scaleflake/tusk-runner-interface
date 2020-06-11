@@ -88,16 +88,17 @@
 </template>
 
 <script>
+import lo from 'lodash';
 import axios from 'axios';
 import ReconnectingWebSocket from 'reconnecting-websocket';
 
 const months = [
-  `jan`, `feb`,
-  `mar`, `apr`,
-  `may`, `jun`,
-  `jul`, `aug`,
-  `sep`, `oct`,
-  `nov`, `dec`,
+  'jan', 'feb',
+  'mar', 'apr',
+  'may', 'jun',
+  'jul', 'aug',
+  'sep', 'oct',
+  'nov', 'dec',
 ];
 function formatDatetime(timestamp) {
   const date = new Date(timestamp);
@@ -110,31 +111,31 @@ function formatDatetime(timestamp) {
   const seconds = Math.round((Date.now() - timestamp) / 1000);
   if (seconds === 0) {
     return dateString;
-  } else
+  }
   if (seconds < 60) {
     return `${dateString} (${seconds} sec ago)`;
-  } else
+  }
   if (seconds < 3600) {
     const m = ~~(seconds / 60);
     const s = seconds - m * 60;
     const ms = `${m} min`;
-    const ss = s !== 0 ? `${s} sec` : ``;
-    return `${dateString} (${ms}${ms && ss ? `, ` : ``}${ss} ago)`;
-  } else
+    const ss = s !== 0 ? `${s} sec` : '';
+    return `${dateString} (${ms}${ms && ss ? ', ' : ''}${ss} ago)`;
+  }
   if (seconds < 3600 * 24) {
     const h = ~~(seconds / 3600);
     const m = ~~(seconds / 60) - h * 60;
     const hs = `${h} h`;
-    const ms = m !== 0 ? `${m} min` : ``;
-    return `${dateString} (${hs}${hs && ms ? `, ` : ``}${ms} ago)`;
-  } else
+    const ms = m !== 0 ? `${m} min` : '';
+    return `${dateString} (${hs}${hs && ms ? ', ' : ''}${ms} ago)`;
+  }
   if (seconds < 3600 * 24 * 3) {
     const d = ~~(seconds / 86400);
     const h = ~~(seconds / 3600) - d * 24;
     const ds = `${d} d`;
-    const hs = h !== 0 ? `${h} h` : ``;
-    return `${dateString} (${ds}${ds && hs ? `, ` : ``}${hs} ago)`;
-  } else
+    const hs = h !== 0 ? `${h} h` : '';
+    return `${dateString} (${ds}${ds && hs ? ', ' : ''}${hs} ago)`;
+  }
   {
     const d = ~~(seconds / 86400);
     const ds = `${d} d`;
@@ -142,7 +143,7 @@ function formatDatetime(timestamp) {
   }
 }
 
-const apiBaseUrl = `//0.narandev.ru/tusk-runner`;
+const apiBaseUrl = '//0.narandev.ru/tusk-runner';
 
 export default {
   data() {
@@ -156,19 +157,27 @@ export default {
   async created() {
     const ws = new ReconnectingWebSocket(`wss:${apiBaseUrl}/ws`);
     ws.onmessage = (message) => {
-      const { method, params } = JSON.parse(message);
+      const { method, params } = JSON.parse(message.data);
 
       switch (method) {
-        case `scriptRun.start`: {
-          this.scriptRuns.unshift(params.scriptRun);
-        } break;
-        case `scriptRun.end`: {
-          const i = this.scriptRuns
-            .findIndex(sr => sr.webhookDelivery === params.scriptRun.webhookDelivery);
+        case 'scriptRun.start':
+          this.scriptRuns.unshift({ ...params.scriptRun, isOpened: true });
+          break;
+        case 'scriptRun.end': {
+          const i = this.scriptRuns.findIndex(
+            (sr) => sr.webhookDelivery === params.scriptRun.webhookDelivery,
+          );
           if (i !== -1) {
-            this.scriptRuns[i] = params.scripts;
+            const scriptRun = this.scriptRuns[i];
+            this.scriptRuns.splice(i, 1, lo.merge(
+              this.scriptRuns[i],
+              params.scriptRun,
+              { isOpened: scriptRun.isOpened },
+            ));
           }
         } break;
+        default:
+          break;
       }
     };
     ws.onopen = () => {
@@ -177,7 +186,6 @@ export default {
     ws.onclose = () => {
       console.log('WebSocket closed!');
     };
-
 
     await Promise.all([
       this.fetchScriptRuns(),
@@ -188,10 +196,9 @@ export default {
     formatDatetime,
     async fetchScriptRuns() {
       const { data: scriptRuns } = await axios.get(
-        `https:${apiBaseUrl}/scriptRuns?limit=10&secret=${localStorage.getItem(`secret`)}`
+        `https:${apiBaseUrl}/scriptRuns?limit=10&secret=${localStorage.getItem('secret')}`,
       );
-      scriptRuns.forEach(sr => { sr.isOpened = true; });
-      this.scriptRuns = scriptRuns;
+      this.scriptRuns = scriptRuns.map((sr) => ({ ...sr, isOpened: true }));
     },
     async fetchScripts() {
       const { data: scripts } = await axios.get(
@@ -200,11 +207,20 @@ export default {
       this.scripts = scripts;
     },
 
-    runScript() {
-      console.log(this.selectedScript);
-    }
-  }
-}
+    async runScript() {
+      await axios.post(`https:${apiBaseUrl}/`, {
+        ref: 'refs/heads/develop',
+        repository: {
+          name: this.selectedScript,
+        },
+      }, {
+        headers: {
+          'X-Gitea-Event': 'push',
+        },
+      });
+    },
+  },
+};
 </script>
 
 <style>

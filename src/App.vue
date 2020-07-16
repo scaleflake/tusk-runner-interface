@@ -74,6 +74,16 @@
 
       <div
         class="scriptRun_item"
+        v-if="scriptRun.env"
+      >
+        <label>
+          <b> env </b>
+        </label>
+        <pre> {{ JSON.stringify(scriptRun.env, null, 2) }} </pre>
+      </div>
+
+      <div
+        class="scriptRun_item"
         v-for="prop of ['scriptContent', 'stdout', 'stderr'].filter(p => p in scriptRun)"
         :key="prop"
       >

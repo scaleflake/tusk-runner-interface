@@ -5,18 +5,18 @@
   </div>
 
   <select v-model="selectedScript">
-    <option :value="null"> - </option>
+    <option :value="null">-</option>
     <option
       v-for="script in scripts"
       :key="script"
       :value="script"
-    > {{ script }} </option>
+    >{{ script }}</option>
   </select>
   <button
     style="margin-left: 5px"
     :disabled="selectedScript === null"
     @click="runScript"
-  > Run </button>
+  >Run</button>
 
   <br>
 
@@ -24,12 +24,12 @@
     class="toggleAll"
     v-if="scriptRuns.some(st => st.isOpened)"
     @click="scriptRuns.forEach(sr => { sr.isOpened = false; })"
-  > Collapse all </button>
+  >Collapse all</button>
   <button
     class="toggleAll"
     v-else
     @click="scriptRuns.forEach(sr => { sr.isOpened = true; })"
-  > Open all </button>
+  >Open all</button>
 
   <div
     class="scriptRun"
@@ -47,19 +47,19 @@
     <button
       class="scriptRun_toggleButton"
       @click="scriptRun.isOpened = !scriptRun.isOpened"
-    > {{ scriptRun.isOpened ? 'V' : '&lt;' }} </button>
+    >{{ scriptRun.isOpened ? 'V' : '&lt;' }}</button>
 
     <div v-if="scriptRun.isOpened">
-      <h4> Duration: {{ scriptRun.duration / 1000 }} seconds </h4>
+      <h4>Duration: {{ scriptRun.duration / 1000 }} seconds</h4>
 
       <div
         class="scriptRun_item scriptRun_item-error"
         v-if="scriptRun.error"
       >
         <label>
-          <b> error </b>
+          <b>error</b>
         </label>
-        <pre> {{ JSON.stringify(scriptRun.error, null, 2) }} </pre>
+        <pre>{{ JSON.stringify(scriptRun.error, null, 2) }}</pre>
       </div>
 
       <div
@@ -67,9 +67,9 @@
         v-if="scriptRun.errorStack"
       >
         <label>
-          <b> errorStack </b>
+          <b>errorStack</b>
         </label>
-        <pre> {{ scriptRun.errorStack }} </pre>
+        <pre>{{ scriptRun.errorStack }}</pre>
       </div>
 
       <div
@@ -77,9 +77,9 @@
         v-if="scriptRun.env"
       >
         <label>
-          <b> env </b>
+          <b>env</b>
         </label>
-        <pre> {{ JSON.stringify(scriptRun.env, null, 2) }} </pre>
+        <pre>{{ JSON.stringify(scriptRun.env, null, 2) }}</pre>
       </div>
 
       <div
@@ -88,9 +88,9 @@
         :key="prop"
       >
         <label>
-          <b> {{ prop }} </b>
+          <b>{{ prop }}</b>
         </label>
-        <pre> {{ scriptRun[prop] }} </pre>
+        <pre>{{ scriptRun[prop] }}</pre>
       </div>
     </div>
   </div>
